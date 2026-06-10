@@ -16,7 +16,7 @@ Random Forest machine learning models were used to evaluate the contribution of 
 
 <p align="center">
 
-  <img src="Data collection-2.png" width="800">
+  <img src="Data collection.png" width="800">
 
 </p>
 
