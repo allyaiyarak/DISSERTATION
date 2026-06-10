@@ -1,0 +1,260 @@
+
+library(dplyr)
+library(ggplot2)
+library(vegan)
+library(openxlsx)
+############################################################
+# 1. Create abundance matrix
+# Input table format:
+# rows = genera
+# columns = samples
+# first column = Genus
+############################################################
+abundance_df <- as.data.frame(genus_relative_abundance_table.csv)
+genus_names <- abundance_df$Genus
+abundance_df <- abundance_df[, -1, drop = FALSE]
+abundance_matrix_noF <- as.matrix(abundance_df)
+rownames(abundance_matrix_noF) <- genus_names
+# Transpose so rows = samples and columns = genera
+abundance_matrix_noF <- t(abundance_matrix_noF)
+############################################################
+# 2. Calculate alpha diversity metrics
+############################################################
+# Richness = number of genera detected per sample
+richness <- rowSums(abundance_matrix_noF > 0)
+# Shannon diversity
+shannon <- diversity(
+  abundance_matrix_noF,
+  index = "shannon"
+)
+# Pielou's evenness = Shannon / log(richness)
+evenness <- ifelse(
+  richness > 1,
+  shannon / log(richness),
+  0
+)
+alpha_diversity_metrics <- data.frame(
+  Sample = rownames(abundance_matrix_noF),
+  Richness = richness,
+  Shannon = shannon,
+  Evenness = evenness
+)
+write.xlsx(
+  alpha_diversity_metrics,
+  "alpha_diversity_metrics.xlsx",
+  rowNames = FALSE
+)
+############################################################
+# 3. Create sample-level metadata for plotting
+############################################################
+donor_plot_meta <- metadata_noF %>%
+  select(Sample = Donor, Outcomes, Study) %>%
+  mutate(SampleType = "Donor")
+recipient_plot_meta <- metadata_noF %>%
+  select(Sample = Recipient, Outcomes, Study) %>%
+  mutate(SampleType = "Recipient")
+sample_plot_meta <- bind_rows(donor_plot_meta, recipient_plot_meta) %>%
+  distinct(Sample, .keep_all = TRUE) %>%
+  mutate(
+    Group = paste(SampleType, Outcomes, sep = "_")
+  )
+alpha_plot_df <- alpha_diversity_metrics %>%
+  left_join(sample_plot_meta, by = "Sample")
+alpha_plot_df$Group <- factor(
+  alpha_plot_df$Group,
+  levels = c(
+    "Donor_failure",
+    "Donor_success",
+    "Recipient_failure",
+    "Recipient_success"
+  )
+)
+group_colours <- c(
+  "Donor_failure" = "#D55E00",
+  "Donor_success" = "#009E73",
+  "Recipient_failure" = "#CC79A7",
+  "Recipient_success" = "#0072B2"
+)
+############################################################
+# 4. Alpha diversity boxplots
+############################################################
+# Shannon diversity
+ggplot(alpha_plot_df, aes(x = Group, y = Shannon, fill = Group)) +
+  geom_boxplot(alpha = 0.8, width = 0.7) +
+  scale_fill_manual(values = group_colours) +
+  theme_classic() +
+  labs(
+    x = "Group",
+    y = "Shannon Diversity",
+    fill = "Sample Type & Outcome",
+    title = "Shannon Diversity by Sample Type and FMT Outcome"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("Shannon_diversity_boxplot.png", width = 7, height = 5, dpi = 300)
+# Richness
+ggplot(alpha_plot_df, aes(x = Group, y = Richness, fill = Group)) +
+  geom_boxplot(alpha = 0.8, width = 0.7) +
+  scale_fill_manual(values = group_colours) +
+  theme_classic() +
+  labs(
+    x = "Group",
+    y = "Genus Richness",
+    fill = "Sample Type & Outcome",
+    title = "Genus Richness by Sample Type and FMT Outcome"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("Richness_boxplot.png", width = 7, height = 5, dpi = 300)
+# Evenness
+ggplot(alpha_plot_df, aes(x = Group, y = Evenness, fill = Group)) +
+  geom_boxplot(alpha = 0.8, width = 0.7) +
+  scale_fill_manual(values = group_colours) +
+  theme_classic() +
+  labs(
+    x = "Group",
+    y = "Pielou's Evenness",
+    fill = "Sample Type & Outcome",
+    title = "Evenness by Sample Type and FMT Outcome"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("Evenness_boxplot.png", width = 7, height = 5, dpi = 300)
+############################################################
+# 5. Bray-Curtis donor-recipient dissimilarity
+############################################################
+bray_dist <- vegdist(abundance_matrix_noF, method = "bray")
+bray_matrix <- as.matrix(bray_dist)
+alpha_lookup <- alpha_diversity_metrics
+rownames(alpha_lookup) <- alpha_lookup$Sample
+compatibility_df <- metadata_noF
+compatibility_df$BrayCurtis <- mapply(
+  function(donor, recipient) bray_matrix[donor, recipient],
+  compatibility_df$Donor,
+  compatibility_df$Recipient
+)
+compatibility_df$Delta_Shannon <- mapply(
+  function(donor, recipient) abs(alpha_lookup[donor, "Shannon"] - alpha_lookup[recipient, "Shannon"]),
+  compatibility_df$Donor,
+  compatibility_df$Recipient
+)
+compatibility_df$Delta_Richness <- mapply(
+  function(donor, recipient) abs(alpha_lookup[donor, "Richness"] - alpha_lookup[recipient, "Richness"]),
+  compatibility_df$Donor,
+  compatibility_df$Recipient
+)
+compatibility_df$Delta_Evenness <- mapply(
+  function(donor, recipient) abs(alpha_lookup[donor, "Evenness"] - alpha_lookup[recipient, "Evenness"]),
+  compatibility_df$Donor,
+  compatibility_df$Recipient
+)
+write.xlsx(
+  compatibility_df,
+  "compatibility_features.xlsx",
+  rowNames = FALSE
+)
+############################################################
+# 6. Bray-Curtis boxplot by FMT outcome
+############################################################
+compatibility_df$Outcomes <- factor(
+  compatibility_df$Outcomes,
+  levels = c("failure", "success")
+)
+outcome_colours <- c(
+  "failure" = "#D55E00",
+  "success" = "#009E73"
+)
+ggplot(compatibility_df, aes(x = Outcomes, y = BrayCurtis, fill = Outcomes)) +
+  geom_boxplot(alpha = 0.8, width = 0.7) +
+  scale_fill_manual(values = outcome_colours) +
+  theme_classic() +
+  labs(
+    x = "FMT Outcome",
+    y = "Donor-Recipient Bray-Curtis Dissimilarity",
+    fill = "FMT Outcome",
+    title = "Donor-Recipient Microbiome Dissimilarity by FMT Outcome"
+  ) +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("BrayCurtis_outcome_boxplot.png", width = 6, height = 5, dpi = 300)
+############################################################
+# 7. PCoA using Bray-Curtis dissimilarity
+############################################################
+pcoa <- cmdscale(bray_dist, eig = TRUE, k = 2)
+pcoa_df <- data.frame(
+  Sample = rownames(abundance_matrix_noF),
+  PCoA1 = pcoa$points[, 1],
+  PCoA2 = pcoa$points[, 2]
+)
+pcoa_df <- pcoa_df %>%
+  left_join(sample_plot_meta, by = "Sample")
+var_explained <- round(100 * pcoa$eig / sum(pcoa$eig), 1)
+# PCoA coloured by sample type and outcome
+ggplot(pcoa_df, aes(x = PCoA1, y = PCoA2, colour = Group)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_colour_manual(values = group_colours) +
+  theme_classic() +
+  labs(
+    x = paste0("PCoA1 (", var_explained[1], "%)"),
+    y = paste0("PCoA2 (", var_explained[2], "%)"),
+    colour = "Sample Type & Outcome",
+    title = "PCoA of Genus-Level Microbiome Composition"
+  ) +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("PCoA_BrayCurtis_Group.png", width = 7, height = 5, dpi = 300)
+# PCoA coloured by study
+ggplot(pcoa_df, aes(x = PCoA1, y = PCoA2, colour = Study)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_classic() +
+  labs(
+    x = paste0("PCoA1 (", var_explained[1], "%)"),
+    y = paste0("PCoA2 (", var_explained[2], "%)"),
+    colour = "Study",
+    title = "PCoA of Genus-Level Microbiome Composition by Study"
+  ) +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16, face = "bold"),
+    axis.title.y = element_text(size = 16, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+ggsave("PCoA_BrayCurtis_by_Study.png", width = 7, height = 5, dpi = 300)
