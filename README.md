@@ -44,10 +44,7 @@ diversity_analysis/
     Alpha diversity, beta diversity, PCoA, PERMANOVA, and statistical analyses
 
 machine_learning/
-    Feature matrix construction and Random Forest model training
-
-feature_ablation/
-    Combined model and feature ablation analyses
+    Feature matrix construction, Random Forest model training and feature ablation analyses
 
 results/
     Model outputs, feature importance results, and summary tables
