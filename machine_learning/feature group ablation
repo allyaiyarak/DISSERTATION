@@ -1,0 +1,176 @@
+############################################################
+
+# Feature group ablation analysis
+
+############################################################
+
+library(dplyr)
+
+library(caret)
+
+library(ranger)
+
+library(ggplot2)
+
+library(openxlsx)
+
+set.seed(123)
+
+############################################################
+
+# 1. Full combined model AUC
+
+############################################################
+
+full_auc <- max(combined_rf$results$ROC)
+
+############################################################
+
+# 2. Create ablated feature matrices
+
+############################################################
+
+# Remove all donor-derived features:
+
+# donor top 20 genera + donor alpha diversity metrics
+
+combined_no_donor <- combined_top20_plus_compatibility %>%
+
+  select(
+
+    -starts_with("donor_")
+
+  )
+
+# Remove all recipient-derived features:
+
+# recipient top 20 genera + recipient alpha diversity metrics
+
+combined_no_recipient <- combined_top20_plus_compatibility %>%
+
+  select(
+
+    -starts_with("recipient_")
+
+  )
+
+# Remove compatibility metrics:
+
+# Bray-Curtis + delta alpha diversity metrics
+
+combined_no_compatibility <- combined_top20_plus_compatibility %>%
+
+  select(
+
+    -BrayCurtis,
+
+    -Delta_Shannon,
+
+    -Delta_Richness,
+
+    -Delta_Evenness
+
+  )
+
+############################################################
+
+# 3. Ensure outcome variables are factors
+
+############################################################
+
+combined_no_donor$Outcome <- factor(
+
+  combined_no_donor$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+combined_no_recipient$Outcome <- factor(
+
+  combined_no_recipient$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+combined_no_compatibility$Outcome <- factor(
+
+  combined_no_compatibility$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+############################################################
+
+# 4. Train ablated Random Forest models
+
+############################################################
+
+set.seed(123)
+
+rf_no_donor <- train(
+
+  Outcome ~ .,
+
+  data = combined_no_donor %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+auc_no_donor <- max(rf_no_donor$results$ROC)
+
+set.seed(123)
+
+rf_no_recipient <- train(
+
+  Outcome ~ .,
+
+  data = combined_no_recipient %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+auc_no_recipient <- max(rf_no_recipient$results$ROC)
+
+set.seed(123)
+
+rf_no_compatibility <- train(
+
+  Outcome ~ .,
+
+  data = combined_no_compatibility %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+auc_no_compatibility <- max(rf_no_compatibility$results$ROC)
+
