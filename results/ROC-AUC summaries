@@ -1,0 +1,11 @@
+Model	                 ROC-AUC
+Donor only	           0.502
+Recipient only	       0.626
+Compatibility only	   0.603
+
+
+Model	                     ROC-AUC	        Change in AUC
+Combined	                 0.595	           N/A
+Combined − Donor	         0.615	           +0.020
+Combined − Recipient	     0.537	           −0.058
+Combined − Compatibility	 0.605	           +0.010
