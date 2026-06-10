@@ -14,6 +14,12 @@ Using publicly available 16S rRNA gene sequencing datasets, this project aimed t
 
 Random Forest machine learning models were used to evaluate the contribution of each feature category to FMT outcome prediction.
 
+<p align="center">
+
+  <img src="Data collection-2.png" width="800">
+
+</p>
+
 ## Main Findings
 
 - Donors associated with unsuccessful FMT outcomes exhibited significantly greater Shannon diversity and genus richness.
