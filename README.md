@@ -49,9 +49,6 @@ machine_learning/
 feature_ablation/
     Combined model and feature ablation analyses
 
-figures/
-    Scripts used to generate dissertation figures
-
 results/
     Model outputs, feature importance results, and summary tables
 ```
