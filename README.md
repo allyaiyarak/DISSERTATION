@@ -140,7 +140,7 @@ The contribution of each feature category was quantified as the change in ROC-AU
 
 - QIIME 2 (2019.10)
 - DADA2
-- SILVA 132 database
+- Silva 132 99% OTUs full-length sequences classifier
 
 ### R Packages
 
