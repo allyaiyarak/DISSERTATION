@@ -1,0 +1,191 @@
+############################################################
+
+# Random Forest model training and ROC-AUC calculation
+
+############################################################
+
+library(dplyr)
+
+library(caret)
+
+library(ranger)
+
+library(pROC)
+
+library(openxlsx)
+
+set.seed(123)
+
+############################################################
+
+# 1. Set outcome factor levels
+
+# "success" is treated as the positive class
+
+############################################################
+
+donor_model_top20_prevalence$Outcome <- factor(
+
+  donor_model_top20_prevalence$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+recipient_model_top20_prevalence$Outcome <- factor(
+
+  recipient_model_top20_prevalence$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+compatibility_model_df$Outcome <- factor(
+
+  compatibility_model_df$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+combined_top20_plus_compatibility$Outcome <- factor(
+
+  combined_top20_plus_compatibility$Outcome,
+
+  levels = c("failure", "success")
+
+)
+
+############################################################
+
+# 2. Set up repeated 10-fold cross-validation
+
+############################################################
+
+ctrl <- trainControl(
+
+  method = "repeatedcv",
+
+  number = 10,
+
+  repeats = 5,
+
+  classProbs = TRUE,
+
+  summaryFunction = twoClassSummary,
+
+  savePredictions = TRUE
+
+)
+
+############################################################
+
+# 3. Train donor-only Random Forest model
+
+############################################################
+
+set.seed(123)
+
+donor_rf <- train(
+
+  Outcome ~ .,
+
+  data = donor_model_top20_prevalence %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+donor_auc <- max(donor_rf$results$ROC)
+
+############################################################
+
+# 4. Train recipient-only Random Forest model
+
+############################################################
+
+set.seed(123)
+
+recipient_rf <- train(
+
+  Outcome ~ .,
+
+  data = recipient_model_top20_prevalence %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+recipient_auc <- max(recipient_rf$results$ROC)
+
+############################################################
+
+# 5. Train compatibility-only Random Forest model
+
+############################################################
+
+set.seed(123)
+
+compatibility_rf <- train(
+
+  Outcome ~ .,
+
+  data = compatibility_model_df %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+compatibility_auc <- max(compatibility_rf$results$ROC)
+
+############################################################
+
+# 6. Train combined Random Forest model
+
+############################################################
+
+set.seed(123)
+
+combined_rf <- train(
+
+  Outcome ~ .,
+
+  data = combined_top20_plus_compatibility %>%
+
+    select(-PairID),
+
+  method = "ranger",
+
+  metric = "ROC",
+
+  trControl = ctrl,
+
+  importance = "permutation"
+
+)
+
+combined_auc <- max(combined_rf$results$ROC)
