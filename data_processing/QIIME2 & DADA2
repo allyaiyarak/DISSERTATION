@@ -1,6 +1,6 @@
 ## 16S rRNA preprocessing with QIIME2 and DADA2
 
-Raw paired-end FASTQ files were processed using QIIME2.
+Raw paired-end FASTQ files were processed using QIIME2. A manifest file was first generated to map each sample ID to its corresponding forward and reverse read files.
 
 qiime tools import \
   --type 'SampleData[PairedEndSequencesWithQuality]' \
@@ -14,3 +14,41 @@ qiime demux summarize \
   --i-data demux-paired-end.qza \
   --o-visualization demux-paired-end.qzv
 
+Paired-end reads were denoised using DADA2 to remove low-quality reads, correct sequencing errors, merge paired reads, and remove chimeric sequences.
+
+qiime dada2 denoise-paired \
+  --i-demultiplexed-seqs demux-paired-end.qza \
+  --p-trunc-len-f 240 \
+  --p-trunc-len-r 220 \
+  --p-trim-left-f 0 \
+  --p-trim-left-r 0 \
+  --p-n-threads 8 \
+  --o-table table.qza \
+  --o-representative-sequences rep-seqs.qza \
+  --o-denoising-stats denoising-stats.qza
+
+Representative sequences were taxonomically classified using a pre-trained SILVA 132 classifier.
+
+qiime feature-classifier classify-sklearn \
+  --i-classifier silva-132-99-nb-classifier.qza \
+  --i-reads rep-seqs.qza \
+  --o-classification taxonomy.qza
+
+The feature table was collapsed to genus level.
+
+qiime taxa collapse \
+  --i-table table.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-level 6 \
+  --o-collapsed-table genus-table.qza
+
+The genus-level table was exported for downstream analysis in R.
+
+qiime tools export \
+  --input-path genus-table.qza \
+  --output-path exported-genus-table
+
+biom convert \
+  -i exported-genus-table/feature-table.biom \
+  -o genus-table.tsv \
+  --to-tsv
