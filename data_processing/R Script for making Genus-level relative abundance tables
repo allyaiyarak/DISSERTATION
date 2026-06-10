@@ -1,1 +1,26 @@
+library(tidyverse)
+library(readr)
 
+# Load exported genus-level table from QIIME2
+genus_table <- read_tsv("genus-table.tsv", skip = 1)
+
+# Rename first column
+colnames(genus_table)[1] <- "Taxonomy"
+
+# Remove BIOM metadata column if present
+genus_table <- genus_table %>%
+  select(-any_of("#OTU ID"))
+
+# Convert count table to relative abundance
+genus_relative_abundance <- genus_table %>%
+  column_to_rownames("Taxonomy") %>%
+  sweep(2, colSums(.), FUN = "/") %>%
+  as.data.frame() %>%
+  rownames_to_column("Taxonomy")
+
+# Save output
+write.csv(
+  genus_relative_abundance,
+  "genus_relative_abundance_table.csv",
+  row.names = FALSE
+)
