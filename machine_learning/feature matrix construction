@@ -1,0 +1,175 @@
+Paste this under Feature matrix construction:
+
+############################################################
+# Feature matrix construction for Random Forest models
+############################################################
+library(dplyr)
+library(openxlsx)
+############################################################
+# 1. Add pair identifiers
+############################################################
+META <- master_metadata %>%
+  mutate(PairID = paste(Donor, Recipient, sep = "_"))
+############################################################
+# 2. Create lookup table
+# Alpha diversity table
+alpha_lookup <- alpha_diversity_metrics
+rownames(alpha_lookup) <- alpha_lookup$Sample
+############################################################
+# 3. Donor feature matrix
+############################################################
+donor_features <- do.call(
+  rbind,
+  lapply(META$Donor, function(x)
+    abundance_df[x, colnames(abundance_matrix)])
+)
+donor_features <- as.data.frame(donor_features)
+colnames(donor_features) <- paste0(
+  "donor_",
+  colnames(donor_features)
+)
+donor_features$donor_Richness <- alpha_lookup[
+  METAF$Donor,
+  "Richness"
+]
+donor_features$donor_Shannon <- alpha_lookup[
+  META$Donor,
+  "Shannon"
+]
+donor_features$donor_Evenness <- alpha_lookup[
+  META$Donor,
+  "Evenness"
+]
+donor_model_df <- cbind(
+  PairID = META$PairID,
+  Outcome = META$Outcomes,
+  donor_features
+)
+############################################################
+# 4. Recipient feature matrix
+############################################################
+recipient_features <- do.call(
+  rbind,
+  lapply(META$Recipient, function(x)
+    abundance_df[x, colnames(abundance_matrix)])
+)
+recipient_features <- as.data.frame(recipient_features)
+colnames(recipient_features) <- paste0(
+  "recipient_",
+  colnames(recipient_features)
+)
+recipient_features$recipient_Richness <- alpha_lookup[
+ META$Recipient,
+  "Richness"
+]
+recipient_features$recipient_Shannon <- alpha_lookup[
+ META$Recipient,
+  "Shannon"
+]
+recipient_features$recipient_Evenness <- alpha_lookup[
+  META$Recipient,
+  "Evenness"
+]
+recipient_model_df <- cbind(
+  PairID = META$PairID,
+  Outcome = META$Outcomes,
+  recipient_features
+)
+############################################################
+# 5. Compatibility feature matrix
+############################################################
+compatibility_model_df <- compatibility_df %>%
+  mutate(
+    PairID = paste(Donor, Recipient, sep = "_"),
+    Outcome = Outcomes
+  ) %>%
+  select(
+    PairID,
+    Outcome,
+    BrayCurtis,
+    Delta_Shannon,
+    Delta_Richness,
+    Delta_Evenness
+  )
+############################################################
+# 6. Combined feature matrix
+############################################################
+combined_model_df <- cbind(
+  PairID = META$PairID,
+  Outcome = META$Outcomes,
+  donor_features,
+  recipient_features,
+  compatibility_df %>%
+    select(
+      BrayCurtis,
+      Delta_Shannon,
+      Delta_Richness,
+      Delta_Evenness
+    )
+)
+############################################################
+# 7. Optional: retain only top 20 most prevalent donor and
+# recipient genera plus alpha diversity and compatibility metrics
+############################################################
+# Donor genera only, excluding alpha diversity metrics
+donor_genera <- donor_model_df %>%
+  select(starts_with("donor_")) %>%
+  select(
+    -contains("Richness"),
+    -contains("Shannon"),
+    -contains("Evenness")
+  )
+donor_prevalence <- colSums(donor_genera > 0)
+top20_donor_genera <- names(
+  sort(donor_prevalence, decreasing = TRUE)
+)[1:20]
+# Recipient genera only, excluding alpha diversity metrics
+recipient_genera <- recipient_model_df %>%
+  select(starts_with("recipient_")) %>%
+  select(
+    -contains("Richness"),
+    -contains("Shannon"),
+    -contains("Evenness")
+  )
+recipient_prevalence <- colSums(recipient_genera > 0)
+top20_recipient_genera <- names(
+  sort(recipient_prevalence, decreasing = TRUE)
+)[1:20]
+# Donor-only reduced feature matrix
+donor_model_top20_prevalence <- donor_model_df %>%
+  select(
+    PairID,
+    Outcome,
+    all_of(top20_donor_genera),
+    donor_Shannon,
+    donor_Richness,
+    donor_Evenness
+  )
+# Recipient-only reduced feature matrix
+recipient_model_top20_prevalence <- recipient_model_df %>%
+  select(
+    PairID,
+    Outcome,
+    all_of(top20_recipient_genera),
+    recipient_Shannon,
+    recipient_Richness,
+    recipient_Evenness
+  )
+# Combined reduced feature matrix
+combined_top20_plus_compatibility <- combined_model_df %>%
+  select(
+    PairID,
+    Outcome,
+    all_of(top20_donor_genera),
+    all_of(top20_recipient_genera),
+    donor_Shannon,
+    donor_Richness,
+    donor_Evenness,
+    recipient_Shannon,
+    recipient_Richness,
+    recipient_Evenness,
+    BrayCurtis,
+    Delta_Shannon,
+    Delta_Richness,
+    Delta_Evenness
+  )
